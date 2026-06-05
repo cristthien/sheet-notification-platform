@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+{% block title %}Sheet Watches — Sheet Notifier{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Sheet Watches</h1>
+    <p class="text-muted">Monitor your Google Sheets for new row activity</p>
+  </div>
+  <button class="btn btn-primary" onclick="openNewWatchModal()">
+    + New Watch
+  </button>
+</div>
+
+<!-- New Watch Modal -->
+<dialog id="new-watch-modal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Create Sheet Watch</h2>
+      <button onclick="closeNewWatchModal()" class="btn-close">✕</button>
+    </div>
+    <form action="/watches" method="post" class="form" id="new-watch-form">
+
+      <!-- Step 1: Choose Spreadsheet -->
+      <div class="form-group">
+        <label>📊 Spreadsheet</label>
+        <div class="select-wrapper">
+          <select name="spreadsheet_id" id="spreadsheet-select" class="input" required
+                  onchange="onSpreadsheetChange(this.value)">
+            <option value="" disabled selected>— Loading your spreadsheets… —</option>
+          </select>
+        </div>
+        <span class="hint" id="sheet-load-status">Click to load your Google Sheets</span>
+      </div>
+
+      <!-- Step 2: Choose Worksheet Tab (populated after spreadsheet selected) -->
+      <div class="form-group" id="worksheet-group" style="display:none">
+        <label>📋 Sheet Tab</label>
+        <div class="select-wrapper">
+          <select name="sheet_name" id="worksheet-select" class="input" required>
+            <option value="" disabled selected>— Select a tab —</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Step 3: Poll Interval -->
+      <div class="form-group" id="interval-group" style="display:none">
+        <label>⏱ Poll Interval (seconds)</label>
+        <input type="number" name="poll_interval_seconds" value="30" min="10" max="3600" class="input" />
+        <span class="hint">How often to check for new rows. Min: 10s, Max: 3600s (1hr)</span>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" onclick="closeNewWatchModal()" class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="create-watch-btn" disabled>Create Watch</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- Watches List -->
+{% if watches %}
+<div class="watches-list">
+  {% for watch in watches %}
+  <div class="watch-card {% if not watch.is_active %}watch-card--inactive{% endif %}">
+    <div class="watch-header">
+      <div class="watch-info">
+        <div class="watch-title">
+          <span class="status-dot {% if watch.is_active %}connected{% else %}disconnected{% endif %}"></span>
+          <strong>{{ watch.spreadsheet_name }}</strong>
+          <span class="text-muted">/ {{ watch.sheet_name }}</span>
+        </div>
+        <div class="watch-meta">
+          <span class="badge">⏱ {{ watch.poll_interval_seconds }}s interval</span>
+          <span class="badge">📊 {{ watch.last_row_count }} rows tracked</span>
+          {% if watch.last_checked_at %}
+          <span class="text-muted" style="font-size:0.8rem">
+            Last checked: {{ watch.last_checked_at.strftime('%H:%M:%S') }}
+          </span>
+          {% endif %}
+        </div>
+        {% if watch.last_error %}
+        <div class="error-badge">⚠️ {{ watch.last_error }}</div>
+        {% endif %}
+      </div>
+
+      <div class="watch-actions">
+        <button class="btn btn-ghost btn-sm"
+          hx-patch="/watches/{{ watch.id }}/toggle"
+          hx-swap="none"
+          hx-on::after-request="window.location.reload()">
+          {% if watch.is_active %}Pause{% else %}Resume{% endif %}
+        </button>
+        <button class="btn btn-danger btn-sm"
+          hx-delete="/watches/{{ watch.id }}"
+          hx-confirm="Delete this watch and all its notification configs?"
+          hx-on::after-request="window.location.reload()">
+          Delete
+        </button>
+      </div>
+    </div>
+
+    <!-- Notification Configs -->
+    <div class="notification-configs">
+      <div class="config-header">
+        <span class="config-title">🔔 Notification Channels</span>
+        <button class="btn btn-ghost btn-xs"
+                onclick="document.getElementById('add-notif-{{ watch.id }}').showModal()">
+          + Add Channel
+        </button>
+      </div>
+
+      {% set configs = watch_configs.get(watch.id|string, []) %}
+      {% if configs %}
+      <div class="config-list">
+        {% for cfg in configs %}
+        <div class="config-item">
+          <span class="badge badge-{{ cfg.channel_type }}">{{ cfg.channel_type }}</span>
+          <span class="config-label">{{ cfg.label }}</span>
+          {% if cfg.channel_type == 'telegram' %}
+          <span class="text-muted" style="font-size:0.8rem">chat: {{ cfg.config.get('chat_id', '?') }}</span>
+          {% endif %}
+          <button class="btn btn-ghost btn-xs" style="margin-left: auto; color: var(--danger)"
+            hx-delete="/watches/{{ watch.id }}/notifications/{{ cfg.id }}"
+            hx-confirm="Remove this notification config?"
+            hx-on::after-request="window.location.reload()">✕</button>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="config-empty">No notification channels yet — add one to start receiving alerts.</div>
+      {% endif %}
+    </div>
+
+    <!-- Add Notification Modal (per watch) -->
+    <dialog id="add-notif-{{ watch.id }}" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Add Notification Channel</h2>
+          <button onclick="document.getElementById('add-notif-{{ watch.id }}').close()" class="btn-close">✕</button>
+        </div>
+        <form action="/watches/{{ watch.id }}/notifications" method="post" class="form">
+          <div class="form-group">
+            <label>Channel Type</label>
+            <select name="channel_type" class="input" id="channel-type-{{ watch.id }}"
+                    onchange="toggleChannelFields('{{ watch.id }}', this.value)">
+              {% for ch in available_channels %}
+              <option value="{{ ch }}">{{ ch|title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Label (optional)</label>
+            <input type="text" name="label" placeholder="e.g. HR Bot, Sales Alerts" class="input" />
+          </div>
+
+          <!-- Telegram fields -->
+          <div id="telegram-fields-{{ watch.id }}" class="channel-fields">
+            <div class="form-group">
+              <label>Bot Token</label>
+              <div style="display:flex; gap:8px; align-items:center">
+                <input type="text" name="bot_token"
+                       id="bot-token-{{ watch.id }}"
+                       placeholder="123456789:AAF..."
+                       class="input"
+                       oninput="debounceFetchChats('{{ watch.id }}')" />
+                <span id="bot-status-{{ watch.id }}" style="font-size:1.1rem; flex-shrink:0"></span>
+              </div>
+              <span class="hint">Get from @BotFather on Telegram</span>
+            </div>
+
+            <!-- Chat ID: dropdown khi load được, fallback manual input -->
+            <div class="form-group" id="chat-id-group-{{ watch.id }}">
+              <label>Chat ID</label>
+              <div id="chat-id-dropdown-{{ watch.id }}" style="display:none">
+                <div class="select-wrapper">
+                  <select id="chat-id-select-{{ watch.id }}" class="input"
+                          onchange="onChatSelected('{{ watch.id }}', this.value)">
+                    <option value="" disabled selected>— Chọn chat —</option>
+                  </select>
+                </div>
+                <span class="hint" id="chat-hint-{{ watch.id }}"></span>
+              </div>
+              <input type="text" name="chat_id"
+                     id="chat-id-input-{{ watch.id }}"
+                     placeholder="-100123456789 or @username"
+                     class="input" />
+              <span class="hint" id="chat-manual-hint-{{ watch.id }}">
+                Nhập bot token bên trên → Chat ID sẽ tự động load
+              </span>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" onclick="document.getElementById('add-notif-{{ watch.id }}').close()" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-primary">Add Channel</button>
+          </div>
+        </form>
+      </div>
+    </dialog>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state card">
+  <span class="empty-icon">📡</span>
+  <h3>No watches yet</h3>
+  <p>Create your first sheet watch to start receiving notifications.</p>
+  <button class="btn btn-primary" onclick="openNewWatchModal()">
+    + Create Watch
+  </button>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Channel fields toggle ──────────────────────────────────────────────────
+function toggleChannelFields(watchId, channelType) {
+  const allFields = document.querySelectorAll(`[id^="telegram-fields-${watchId}"], [id^="slack-fields-${watchId}"]`);
+  allFields.forEach(el => el.style.display = 'none');
+  const target = document.getElementById(`${channelType}-fields-${watchId}`);
+  if (target) target.style.display = 'block';
+}
+
+// ── Telegram Chat ID auto-fetch ────────────────────────────────────────────
+const _tgDebounceTimers = {};
+
+function debounceFetchChats(watchId) {
+  clearTimeout(_tgDebounceTimers[watchId]);
+  const token = document.getElementById(`bot-token-${watchId}`)?.value?.trim();
+  const statusEl = document.getElementById(`bot-status-${watchId}`);
+
+  // Reset UI
+  document.getElementById(`chat-id-dropdown-${watchId}`).style.display = 'none';
+  document.getElementById(`chat-id-input-${watchId}`).value = '';
+  document.getElementById(`chat-manual-hint-${watchId}`).textContent = 'Nhập bot token bên trên → Chat ID sẽ tự động load';
+  if (statusEl) statusEl.textContent = '';
+
+  // Cần ít nhất dạng "digits:string"
+  if (!token || !token.includes(':') || token.length < 20) return;
+
+  if (statusEl) statusEl.textContent = '⏳';
+  _tgDebounceTimers[watchId] = setTimeout(() => fetchTelegramChats(watchId, token), 800);
+}
+
+async function fetchTelegramChats(watchId, token) {
+  const statusEl = document.getElementById(`bot-status-${watchId}`);
+  const dropdownEl = document.getElementById(`chat-id-dropdown-${watchId}`);
+  const selectEl = document.getElementById(`chat-id-select-${watchId}`);
+  const inputEl = document.getElementById(`chat-id-input-${watchId}`);
+  const hintEl = document.getElementById(`chat-hint-${watchId}`);
+  const manualHint = document.getElementById(`chat-manual-hint-${watchId}`);
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getUpdates`);
+    const data = await res.json();
+
+    if (!data.ok) {
+      statusEl.textContent = '❌';
+      manualHint.textContent = '⚠️ Token không hợp lệ. Kiểm tra lại từ @BotFather.';
+      return;
+    }
+
+    // Extract unique chats from updates
+    const chatsMap = new Map();
+    (data.result || []).forEach(upd => {
+      const chat = upd.message?.chat || upd.channel_post?.chat || upd.my_chat_member?.chat;
+      if (chat && chat.id) {
+        const label = chat.title || chat.username || chat.first_name || String(chat.id);
+        chatsMap.set(String(chat.id), `${label} (${chat.type}) — ${chat.id}`);
+      }
+    });
+
+    if (chatsMap.size === 0) {
+      statusEl.textContent = '⚠️';
+      manualHint.innerHTML = '⚠️ Bot chưa có chat nào. Hãy gửi 1 tin nhắn cho bot trước, rồi nhập lại token.<br>Hoặc nhập Chat ID thủ công bên dưới.';
+      inputEl.placeholder = '-100123456789';
+      return;
+    }
+
+    // Populate dropdown
+    statusEl.textContent = '✅';
+    selectEl.innerHTML = '<option value="" disabled selected>— Chọn chat —</option>';
+    chatsMap.forEach((label, id) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = label;
+      selectEl.appendChild(opt);
+    });
+    dropdownEl.style.display = 'block';
+    inputEl.style.display = 'none';
+    hintEl.textContent = `${chatsMap.size} chat tìm thấy`;
+    manualHint.style.display = 'none';
+
+  } catch (e) {
+    statusEl.textContent = '❌';
+    manualHint.textContent = '❌ Không thể kết nối Telegram. Nhập Chat ID thủ công.';
+  }
+}
+
+function onChatSelected(watchId, chatId) {
+  // Sync giá trị vào hidden input để form gửi đúng
+  const inputEl = document.getElementById(`chat-id-input-${watchId}`);
+  inputEl.value = chatId;
+  inputEl.style.display = 'none';
+}
+
+// ── Zapier-style sheet picker ──────────────────────────────────────────────
+let spreadsheetsLoaded = false;
+
+function openNewWatchModal() {
+  document.getElementById('new-watch-modal').showModal();
+  if (!spreadsheetsLoaded) loadSpreadsheets();
+}
+
+function closeNewWatchModal() {
+  document.getElementById('new-watch-modal').close();
+}
+
+async function loadSpreadsheets() {
+  const select = document.getElementById('spreadsheet-select');
+  const status = document.getElementById('sheet-load-status');
+
+  status.textContent = '⏳ Loading your Google Sheets…';
+  select.disabled = true;
+
+  try {
+    const res = await fetch('/google/spreadsheets');
+    if (!res.ok) {
+      if (res.status === 403) {
+        status.innerHTML = '⚠️ Google Sheets not connected. <a href="/google/authorize">Connect now →</a>';
+      } else {
+        status.textContent = '❌ Failed to load spreadsheets.';
+      }
+      return;
+    }
+
+    const data = await res.json();
+    const sheets = data.spreadsheets || [];
+
+    select.innerHTML = '<option value="" disabled selected>— Choose a spreadsheet —</option>';
+    sheets.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      select.appendChild(opt);
+    });
+
+    select.disabled = false;
+    spreadsheetsLoaded = true;
+    status.textContent = `${sheets.length} spreadsheet(s) found`;
+  } catch (e) {
+    status.textContent = '❌ Network error loading spreadsheets.';
+  }
+}
+
+async function onSpreadsheetChange(spreadsheetId) {
+  if (!spreadsheetId) return;
+
+  const worksheetGroup = document.getElementById('worksheet-group');
+  const worksheetSelect = document.getElementById('worksheet-select');
+  const intervalGroup = document.getElementById('interval-group');
+  const createBtn = document.getElementById('create-watch-btn');
+
+  worksheetGroup.style.display = 'block';
+  worksheetSelect.innerHTML = '<option value="" disabled selected>⏳ Loading tabs…</option>';
+  worksheetSelect.disabled = true;
+  intervalGroup.style.display = 'none';
+  createBtn.disabled = true;
+
+  try {
+    const res = await fetch(`/google/worksheets?spreadsheet_id=${encodeURIComponent(spreadsheetId)}`);
+    const data = await res.json();
+    const tabs = data.worksheets || [];
+
+    worksheetSelect.innerHTML = '<option value="" disabled selected>— Choose a tab —</option>';
+    tabs.forEach(tab => {
+      const opt = document.createElement('option');
+      opt.value = tab;
+      opt.textContent = tab;
+      worksheetSelect.appendChild(opt);
+    });
+    worksheetSelect.disabled = false;
+
+    worksheetSelect.onchange = () => {
+      if (worksheetSelect.value) {
+        intervalGroup.style.display = 'block';
+        createBtn.disabled = false;
+      }
+    };
+  } catch (e) {
+    worksheetSelect.innerHTML = '<option value="" disabled selected>❌ Failed to load tabs</option>';
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,38 @@
+services:
+  # Web Service (API + Frontend)
+  - type: web
+    name: sheet-notifier-web
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: USE_SCHEDULER
+        value: "false"          # Worker dyno handles polling
+      - key: MONGODB_URL
+        sync: false             # Set manually in Render dashboard
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: APP_SECRET_KEY
+        generateValue: true     # Auto-generate secure key
+      - key: WORKER_SECRET
+        generateValue: true
+      - key: APP_BASE_URL
+        value: https://sheet-notifier-web.onrender.com
+
+  # Background Worker (Polling)
+  - type: worker
+    name: sheet-notifier-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python worker.py
+    envVars:
+      - key: MONGODB_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: DEFAULT_POLL_INTERVAL
+        value: "30"

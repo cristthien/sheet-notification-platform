@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Sheet Notifier{% endblock %}</title>
+  <meta name="description" content="Automatically send Telegram notifications when new rows are added to your Google Sheets." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+  {% if user is defined and user %}
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="nav-logo">⚡</span>
+      <span class="nav-name">Sheet Notifier</span>
+    </div>
+    <div class="nav-links">
+      <a href="/dashboard" class="nav-link {% if request.url.path == '/dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="/watches" class="nav-link {% if '/watches' in request.url.path %}active{% endif %}">Watches</a>
+      <a href="/logs" class="nav-link {% if '/logs' in request.url.path %}active{% endif %}">Logs</a>
+    </div>
+    <div class="nav-user">
+      {% if user.avatar_url %}
+      <img src="{{ user.avatar_url }}" alt="{{ user.name }}" class="avatar" />
+      {% endif %}
+      <span class="nav-username">{{ user.name }}</span>
+      <a href="/auth/logout" class="btn btn-ghost btn-sm">Logout</a>
+    </div>
+  </nav>
+  {% endif %}
+
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

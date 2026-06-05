@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Sheet Notifier{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p class="text-muted">Welcome back, {{ user.name }}</p>
+  </div>
+</div>
+
+<!-- Revoke Warning Banner -->
+{% if user.sheets_revoked %}
+<div class="alert alert-danger">
+  <span class="alert-icon">⚠️</span>
+  <div>
+    <strong>Google Sheets connection revoked.</strong>
+    Your watches have been paused. Please reconnect to resume.
+    <a href="/google/authorize" class="btn btn-sm btn-danger" style="margin-left:12px">Reconnect Google Sheets</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Just Connected Banner -->
+{% if just_connected %}
+<div class="alert alert-success">
+  <span class="alert-icon">✅</span>
+  <strong>Google Sheets connected successfully!</strong> You can now create sheet watches.
+</div>
+{% endif %}
+
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-number">{{ watches|length }}</div>
+    <div class="stat-label">Total Watches</div>
+  </div>
+  <div class="stat-card stat-card--green">
+    <div class="stat-number">{{ active_watches }}</div>
+    <div class="stat-label">Active Watches</div>
+  </div>
+  <div class="stat-card stat-card--blue">
+    <div class="stat-number">{{ total_logs_today }}</div>
+    <div class="stat-label">Notifications Today</div>
+  </div>
+  <div class="stat-card stat-card--purple">
+    <div class="stat-number">{{ success_today }}</div>
+    <div class="stat-label">Successful Today</div>
+  </div>
+</div>
+
+<!-- Google Sheets Connection Status -->
+<div class="card">
+  <div class="card-header">
+    <h2>Google Sheets</h2>
+  </div>
+  <div class="card-body">
+    {% if user.sheets_connected and not user.sheets_revoked %}
+    <div class="connection-status connected">
+      <span class="status-dot connected"></span>
+      <span>Connected</span>
+      {% if user.sheets_token_expiry %}
+      <span class="text-muted" style="font-size:0.8rem; margin-left: 8px;">
+        Token expires: {{ user.sheets_token_expiry.strftime('%Y-%m-%d %H:%M') }} UTC
+      </span>
+      {% endif %}
+      <a href="/google/disconnect" class="btn btn-ghost btn-sm" style="margin-left: auto"
+         hx-confirm="Disconnect Google Sheets? All watches will be paused.">
+        Disconnect
+      </a>
+    </div>
+    {% else %}
+    <div class="connection-status disconnected">
+      <span class="status-dot disconnected"></span>
+      <span>Not connected</span>
+      <a href="/google/authorize" class="btn btn-primary btn-sm" style="margin-left: auto">
+        Connect Google Sheets
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="card">
+  <div class="card-header">
+    <h2>Recent Activity</h2>
+    <a href="/logs" class="btn btn-ghost btn-sm">View all →</a>
+  </div>
+  <div class="card-body">
+    {% if recent_logs %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Sheet</th>
+          <th>Row</th>
+          <th>Channel</th>
+          <th>Status</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in recent_logs %}
+        <tr>
+          <td>{{ log.sheet_name }}</td>
+          <td>#{{ log.row_index }}</td>
+          <td><span class="badge badge-{{ log.channel_type }}">{{ log.channel_type }}</span></td>
+          <td><span class="badge badge-{{ log.status }}">{{ log.status }}</span></td>
+          <td class="text-muted">{{ log.created_at.strftime('%H:%M:%S') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+      <span class="empty-icon">📭</span>
+      <p>No activity yet. Create a watch and add a row to your sheet!</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Logs — Sheet Notifier{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Notification Logs</h1>
+    <p class="text-muted">{{ total }} total records</p>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom: 16px;">
+  <div class="card-body">
+    <form method="get" action="/logs" class="filters-row">
+      <select name="watch_id" class="input input-sm">
+        <option value="">All Watches</option>
+        {% for w in watches %}
+        <option value="{{ w.id }}" {% if selected_watch == w.id|string %}selected{% endif %}>
+          {{ w.spreadsheet_name }} / {{ w.sheet_name }}
+        </option>
+        {% endfor %}
+      </select>
+
+      <select name="status" class="input input-sm">
+        <option value="">All Status</option>
+        <option value="success" {% if selected_status == 'success' %}selected{% endif %}>✅ Success</option>
+        <option value="failed" {% if selected_status == 'failed' %}selected{% endif %}>❌ Failed</option>
+      </select>
+
+      <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+      <a href="/logs" class="btn btn-ghost btn-sm">Clear</a>
+    </form>
+  </div>
+</div>
+
+<!-- Log Table -->
+<div class="card">
+  <div class="card-body" style="padding: 0;">
+    {% if logs %}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Sheet</th>
+          <th>Row #</th>
+          <th>Data</th>
+          <th>Channel</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="text-muted" style="white-space: nowrap; font-size: 0.8rem;">
+            {{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+          </td>
+          <td>
+            <strong>{{ log.sheet_name }}</strong>
+          </td>
+          <td>#{{ log.row_index }}</td>
+          <td>
+            <div class="row-data-preview">
+              {% for k, v in log.row_data.items() %}
+              {% if v %}
+              <span class="data-chip"><b>{{ k }}:</b> {{ v|string|truncate(30) }}</span>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </td>
+          <td><span class="badge badge-{{ log.channel_type }}">{{ log.channel_type }}</span></td>
+          <td>
+            {% if log.status == 'success' %}
+            <span class="badge badge-success">✅ Sent</span>
+            {% else %}
+            <span class="badge badge-danger" title="{{ log.error_message }}">❌ Failed</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div class="pagination">
+      {% if page > 1 %}
+      <a href="?page={{ page - 1 }}{% if selected_watch %}&watch_id={{ selected_watch }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}"
+         class="btn btn-ghost btn-sm">← Prev</a>
+      {% endif %}
+
+      <span class="text-muted">Page {{ page }} of {{ total_pages }}</span>
+
+      {% if page < total_pages %}
+      <a href="?page={{ page + 1 }}{% if selected_watch %}&watch_id={{ selected_watch }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}"
+         class="btn btn-ghost btn-sm">Next →</a>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+      <span class="empty-icon">📭</span>
+      <p>No logs found. Add a row to your watched sheet to see activity here.</p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
