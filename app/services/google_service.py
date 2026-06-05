@@ -15,8 +15,12 @@ Token revoke handling:
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+# Allow Google to return broader scopes than requested (e.g. after Sheets connect)
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
 
 import google.auth.exceptions
 import google.auth.transport.requests
@@ -78,7 +82,9 @@ def get_login_authorization_url() -> tuple[str, str]:
     url, state = flow.authorization_url(
         access_type="offline",
         prompt="select_account",
-        include_granted_scopes="true",
+        # NOTE: do NOT set include_granted_scopes=true here — it causes
+        # Google to return combined scopes (login + sheets) which triggers
+        # an oauthlib scope mismatch error on the login callback.
     )
     return url, state
 

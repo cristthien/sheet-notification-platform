@@ -19,7 +19,8 @@
       <h2>Create Sheet Watch</h2>
       <button onclick="closeNewWatchModal()" class="btn-close">✕</button>
     </div>
-    <form action="/watches" method="post" class="form" id="new-watch-form">
+    <form action="/watches" method="post" class="form" id="new-watch-form"
+          onsubmit="submitOnce(this, 'create-watch-btn', 'Creating…')">
 
       <!-- Step 1: Choose Spreadsheet -->
       <div class="form-group">
@@ -105,7 +106,7 @@
       <div class="config-header">
         <span class="config-title">🔔 Notification Channels</span>
         <button class="btn btn-ghost btn-xs"
-                onclick="document.getElementById('add-notif-{{ watch.id }}').showModal()">
+                onclick="closeAllModals(); document.getElementById('add-notif-{{ watch.id }}').showModal()">
           + Add Channel
         </button>
       </div>
@@ -139,7 +140,8 @@
           <h2>Add Notification Channel</h2>
           <button onclick="document.getElementById('add-notif-{{ watch.id }}').close()" class="btn-close">✕</button>
         </div>
-        <form action="/watches/{{ watch.id }}/notifications" method="post" class="form">
+        <form action="/watches/{{ watch.id }}/notifications" method="post" class="form"
+              onsubmit="submitOnce(this, 'add-channel-btn-{{ watch.id }}', 'Adding…')">
           <div class="form-group">
             <label>Channel Type</label>
             <select name="channel_type" class="input" id="channel-type-{{ watch.id }}"
@@ -194,7 +196,7 @@
 
           <div class="modal-footer">
             <button type="button" onclick="document.getElementById('add-notif-{{ watch.id }}').close()" class="btn btn-ghost">Cancel</button>
-            <button type="submit" class="btn btn-primary">Add Channel</button>
+            <button type="submit" class="btn btn-primary" id="add-channel-btn-{{ watch.id }}">Add Channel</button>
           </div>
         </form>
       </div>
@@ -216,6 +218,39 @@
 
 {% block scripts %}
 <script>
+// ── Form Double Submit Prevention ────────────────────────────────────────────
+function submitOnce(form, buttonId, loadingText) {
+  // Wait a tiny bit so the form actually submits before we disable the button
+  setTimeout(() => {
+    const btn = document.getElementById(buttonId);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = loadingText || 'Processing…';
+    }
+  }, 10);
+  return true;
+}
+
+// ── Modal helpers ──────────────────────────────────────────────────────────
+function closeAllModals() {
+  document.querySelectorAll('dialog.modal[open]').forEach(d => d.close());
+}
+
+function openNewWatchModal() {
+  closeAllModals();
+  // Reset form state
+  spreadsheetsLoaded = false;
+  document.getElementById('worksheet-group').style.display = 'none';
+  document.getElementById('interval-group').style.display = 'none';
+  document.getElementById('create-watch-btn').disabled = true;
+  document.getElementById('new-watch-modal').showModal();
+  loadSpreadsheets();
+}
+
+function closeNewWatchModal() {
+  document.getElementById('new-watch-modal').close();
+}
+
 // ── Channel fields toggle ──────────────────────────────────────────────────
 function toggleChannelFields(watchId, channelType) {
   const allFields = document.querySelectorAll(`[id^="telegram-fields-${watchId}"], [id^="slack-fields-${watchId}"]`);
