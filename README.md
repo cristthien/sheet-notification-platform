@@ -15,7 +15,7 @@ A real-time automation platform that bridges Google Sheets and Telegram. This sy
 ## 🎥 Video Demo
 *Chèn link video quay màn hình quá trình Test tính năng tại đây:*
 
-[![Watch the video](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://youtu.be/YOUR_VIDEO_ID)
+[![Watch the video](https://img.youtube.com/vi/cWRitC8vn9k/maxresdefault.jpg)](https://youtu.be/cWRitC8vn9k)
 *(Click vào ảnh để xem video demo thực tế)*
 
 ---
