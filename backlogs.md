@@ -1,3 +1,2 @@
 - Option lại cách hiển thị, send message dạng nào send như thế nào 
-- chỉnh giao diện   
 - check lại những điều kiện 

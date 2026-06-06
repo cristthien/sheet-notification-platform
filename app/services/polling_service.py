@@ -125,7 +125,15 @@ async def _process_watch(watch: SheetWatch, summary: dict) -> None:
 
     current_count = len(all_rows)
 
-    if current_count <= watch.last_row_count:
+    if current_count < watch.last_row_count:
+        # User deleted rows. Reset the baseline to prevent getting stuck.
+        await watch.set({
+            "last_row_count": current_count,
+            "last_checked_at": datetime.utcnow(),
+            "last_error": None
+        })
+        return
+    elif current_count == watch.last_row_count:
         # No new rows
         await watch.set({"last_checked_at": datetime.utcnow(), "last_error": None})
         return
