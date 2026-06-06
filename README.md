@@ -5,7 +5,6 @@ A real-time automation platform that bridges Google Sheets and Telegram. This sy
 ---
 
 ## 🎨 User Interface (Giao diện)
-*Hãy thay thế các đường link bên dưới bằng ảnh chụp màn hình thực tế của bạn.*
 
 ![Dashboard](dashboard.png)
 *Màn hình quản lý các Sheet Watch.*
@@ -13,7 +12,6 @@ A real-time automation platform that bridges Google Sheets and Telegram. This sy
 ---
 
 ## 🎥 Video Demo
-*Chèn link video quay màn hình quá trình Test tính năng tại đây:*
 
 [![Watch the video](https://img.youtube.com/vi/cWRitC8vn9k/maxresdefault.jpg)](https://youtu.be/cWRitC8vn9k)
 *(Click vào ảnh để xem video demo thực tế)*
